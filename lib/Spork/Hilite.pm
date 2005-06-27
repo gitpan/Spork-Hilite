@@ -1,5 +1,5 @@
 package Spork::Hilite;
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use Kwiki::Plugin -Base;
 use Kwiki::Installer -base;
@@ -31,19 +31,8 @@ sub QQQ {
 sub to_html {
     my ($code, $directives) = $self->split;
     my $map = $self->parse($code, $directives);
-    $self->format($code, $map);
-}
-
-sub format {
-    my ($code, $map) = @_;
-    my @output;
-    for (my $i = 0; $i < @$code; $i++) {
-        my $line = $code->[$i];
-        $line = $self->markup($line, $map->[$i])
-          if defined $map->[$i];
-        push @output, $line;
-    }
-    join '', map "$_\n", "<pre>", @output, "</pre>";
+    my $formatted = $self->format($code, $map);
+    return $self->escape($formatted);
 }
 
 my %color_map = (
@@ -55,6 +44,26 @@ my %color_map = (
     y => 'yellow',
     w => 'white',
 );
+sub escape {
+    require CGI;
+    my $output = CGI::escapeHTML(shift);
+    $output =~ s/~([rgbycmw])~/qq[<span class="hilite_$color_map{$1}">]/eg;
+    $output =~ s!~/~!</span>!g;
+    join '', map "$_\n", "<pre>", $output, "</pre>";
+}
+
+sub format {
+    my ($code, $map) = @_;
+    my @output;
+    for (my $i = 0; $i < @$code; $i++) {
+        my $line = $code->[$i];
+        $line = $self->markup($line, $map->[$i])
+          if defined $map->[$i];
+        push @output, $line;
+    }
+    join "\n", @output;
+}
+
 sub markup {
     my ($line, $mark) = @_;
     my $out = '';
@@ -62,25 +71,52 @@ sub markup {
     for (my $i = 0; $i < length($line); $i++) {
         my $hilite = $mark->[$i] ? $mark->[$i][0] : '';
         if ($current ne $hilite) {
-            $out .= '</span>' if $current;
-            $out .= qq[<span class="hilite_$color_map{$hilite}">]
+            $out .= '~/~' if $current;
+            $out .= "~$hilite~"
               if $hilite;
             $current = $hilite;
         }
         $out .= substr($line, $i, 1);
     }
-    $out .= '</span>' if $current;
+    $out .= '~/~' if $current;
     return $out;
+}
+
+sub detect_paragraphs {
+    my ($line, $number, $code) = @_;
+    my $start = $number;
+    while ($number < @$code) {
+        last if $code->[$number] =~ /^\s*$/;
+        $number++;
+    }
+    map {
+        "$line$_";
+    } $start .. $number;
 }
 
 sub parse {
     my ($code, $directives) = @_;
+    my @directives = map {
+        /(.*?)(\d+)-(\d+)$/
+        ? do {
+            my ($line, $start, $end) = ($1, $2, $3);
+            map {
+                "$line$_";
+            } $start .. $end;
+        }
+        : /(.*?)(\d+)\@$/
+          ? do {
+              $self->detect_paragraphs($1, $2, $code);
+          }
+          : $_;
+    } @$directives;
     my @map;
     my $num = 0;
     for my $line (@$code) {
         $num += 1;
-        for my $dir (@$directives) {
-            next unless $dir =~ s/\s+$num\s*//;
+        for (@directives) {
+            my $dir = $_;
+            next unless $dir =~ s/\s+$num$//;
             my $repeat_char = '';
             for (my $i = 0; $i < length($line); $i++) {
                 no warnings;
@@ -108,7 +144,7 @@ sub split {
     my(@code, @directives);
     
     while (@lines) {
-        last if $lines[0] =~ /^[rgb\+\ ]+\d+$/;
+        last if $lines[0] =~ /^[rgbycmw\+\ ]+\d+(-\d+|\@)?$/;
         push @code, shift @lines;
     }
     pop @code while (@code and $code[-1] eq '');
@@ -129,6 +165,23 @@ __DATA__
 Spork::Hilite - Hilite Code Snippets in Spork
 
 =head1 SYNOPSIS
+
+    ----
+    == Watch The Pretty Colors Move
+    
+    .hilite
+    sub spork {
+        print "I Like Spork\n";
+    }
+
+               r 2
+    +
+                 gggg 2
+    +
+                      bbbbb 2
+    ----
+    == Next Slide. etc
+                       
 
 =head1 DESCRIPTION
 

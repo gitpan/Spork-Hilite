@@ -33,5 +33,5 @@ sub expand {
     s/MMM/<span class="hilite_magenta">/g;
     s/WWW/<span class="hilite_white">/g;
     s!///!</span>!g;
-    return $_;
+    return "<pre>\n$_</pre>\n";
 }

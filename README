@@ -2,6 +2,22 @@ NAME
     Spork::Hilite - Hilite Code Snippets in Spork
 
 SYNOPSIS
+        ----
+        == Watch The Pretty Colors Move
+    
+        .hilite
+        sub spork {
+            print "I Like Spork\n";
+        }
+
+                   r 2
+        +
+                     gggg 2
+        +
+                          bbbbb 2
+        ----
+        == Next Slide. etc
+                       
 DESCRIPTION
     This plugin lets you mark code snippets with specific colors. It is
     especially good for changing colors several times on the same snippet.
